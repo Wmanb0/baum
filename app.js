@@ -685,10 +685,11 @@ window.commitInlineEdge=(fromId,toId)=>{
   const dup=DB.edges.find(e=>e.from===fromId&&e.to===toId&&e.type===type);
   if(dup&&!confirm("已存在相同类型的同向关系，仍要再建一条?"))return;
   const used=new Set(DB.edges.map(e=>e.id));
-  DB.edges.push({id:makeEdgeSlug(fromId,toId,type,used),from:fromId,to:toId,type,label,note,direction:dir,strength:3});
+  const newEdge={id:makeEdgeSlug(fromId,toId,type,used),from:fromId,to:toId,type,label,note,direction:dir,strength:3};
+  DB.edges.push(newEdge);
   save();
+  if(!applyEdgeChangeLocally("add",newEdge,[fromId,toId]))renderGraph();
   linkMode=true;
-  renderGraph();
   renderLinkModeBanner();
 };
 
@@ -729,7 +730,16 @@ window.showFullPathBetween=(a,b)=>{
   d.innerHTML=`<h3>间接路径</h3><div class="row">${path.map(id=>esc(wordById(id)?.word||id)).join(" → ")}</div>
     <div class="muted" style="margin-top:6px">中间词在当前视图被隐藏，故仅以间接连线表示两端关系。</div>`;
 };
-window.delEdge=id=>{DB.edges=DB.edges.filter(e=>e.id!==id);save();renderGraph();document.getElementById("detail").innerHTML="<span class='muted'>已删除</span>";};
+window.delEdge=id=>{
+  const e=DB.edges.find(x=>x.id===id);
+  if(!e)return;
+  const affected=[e.from,e.to];
+  DB.edges=DB.edges.filter(x=>x.id!==id);
+  save();
+  // 优先局部更新; 若失败(API 不可用)退回整页重绘
+  if(!applyEdgeChangeLocally("remove",e,affected))renderGraph();
+  document.getElementById("detail").innerHTML="<span class='muted'>已删除</span>";
+};
 window.editEdgeNote=id=>{const e=DB.edges.find(x=>x.id===id);if(!e)return;const v=prompt("关系说明：",e.note||"");if(v===null)return;e.note=v.trim();save();renderGraph();showEdgeDetail(id);};
 window.toggleEdgeDirection=id=>{const e=DB.edges.find(x=>x.id===id);if(!e)return;e.direction=e.direction==="directed"?"undirected":"directed";save();renderGraph();showEdgeDetail(id);};
 window.focusNode=id=>{
@@ -1292,6 +1302,45 @@ function bindGraphToolbarToggle(){
     setGraphToolbarCollapsed(collapsed);
   };
   btn.dataset.bound = "1";
+}
+
+
+// 局部更新: 只处理加/删单条真实边, 更新该边绘制 + 两端点的 size 与 color
+// 不重建实例、不遍历全部节点、不重算间接边
+function applyEdgeChangeLocally(op, edgeObj, affectedIds){
+  if(!network)return false;
+  try{
+    const edgesDS=network.body.data.edges;
+    const nodesDS=network.body.data.nodes;
+    if(op==="add"){
+      // 只有当两端点当前都在图上(未被视图过滤)才画这条边
+      const na=nodesDS.get(edgeObj.from), nb=nodesDS.get(edgeObj.to);
+      if(na&&nb){
+        edgesDS.add(Object.assign(
+          {id:edgeObj.id,from:edgeObj.from,to:edgeObj.to,label:edgeObj.label||"",
+           font:{color:"#9a9aa4",size:10,strokeWidth:0}},
+          edgeStyle(edgeObj.type,edgeObj.direction)
+        ));
+      }
+    }else if(op==="remove"){
+      if(edgesDS.get(edgeObj.id))edgesDS.remove(edgeObj.id);
+    }
+    // 刷新受影响端点的 size 与 color(度数、状态可能变)
+    const degree={};
+    DB.edges.forEach(e=>{degree[e.from]=(degree[e.from]||0)+1;degree[e.to]=(degree[e.to]||0)+1;});
+    const cmap=statusColorMap();
+    const upd=[];
+    affectedIds.forEach(id=>{
+      const w=wordById(id);if(!w)return;
+      if(!nodesDS.get(id))return; // 端点被过滤掉不在图上, 跳过
+      const deg=degree[id]||0;
+      const size=14+Math.min(deg*4,24)+(w.is_key?4:0);
+      const col=cmap[computeStatus(w)]||"#8a8a94";
+      upd.push({id,size,color:{background:col,border:"#00000000",highlight:{background:col,border:currentTheme()==="light"?"#1e2530":"#fff"}}});
+    });
+    if(upd.length)nodesDS.update(upd);
+    return true;
+  }catch(err){return false;}
 }
 
 /* ============ beforeunload ============ */
