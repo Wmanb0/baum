@@ -861,13 +861,19 @@ function renderEdit(){
         <div class="full"><label>中文翻译</label><input id="f-excn"></div>
       </div>
     </div>
-    <div class="group"><h3>串联信息</h3>
+    <div class="group"><h3>所属专题</h3>
       <div class="form-grid">
-        <div class="full"><label>所属专题(可多选)</label><select id="f-topics" multiple size="4">${topicOpts}</select></div>
+        <div class="full">
+          <label>选择专题(可多选，按住 Ctrl / Cmd 点选)</label>
+          <select id="f-topics" multiple size="5">${topicOpts}</select>
+        </div>
       </div>
-      ${DB.words.length<1?'<p class="muted">先保存本词后即可添加与其他词的关系。</p>':`
-      <hr><b style="font-size:13px">添加一条关系(把本词连到旧词)</b>
-      <div class="form-grid" style="margin-top:8px">
+      <p class="muted" style="font-size:12px;margin-top:8px">选好后，点页面顶部的「保存词条」即可保存。专题和词间关系是独立的，不加关系也能只加专题。</p>
+    </div>
+    <div class="group"><h3>词间关系（可选）</h3>
+      ${DB.words.length<1?'<p class="muted">词库里还没有其他词，先保存本词，之后才能把它连到别的词。</p>':`
+      <p class="muted" style="font-size:12px;margin-bottom:10px">这一区专门用来把本词连到已有的词。不需要连关系的话，可以跳过整个区域。</p>
+      <div class="form-grid">
         <div>
           <label>相关旧词(输入时出现候选)</label>
           <div class="ac-wrap"><input id="r-to" placeholder="输入德语或中文…" autocomplete="off"><div class="ac-list" id="r-to-list"></div></div>
@@ -878,8 +884,8 @@ function renderEdit(){
         <div><label>方向</label><select id="r-dir"><option value="undirected">无向(近义/对称)</option><option value="directed">有向(派生/延伸)</option></select></div>
         <div class="full"><label>区别说明 / 关系说明</label><textarea id="r-note"></textarea></div>
       </div>
-      <button style="margin-top:8px" onclick="saveEdgeFromEdit()">保存关系(本词 → 旧词)</button>
-      <span class="muted" style="font-size:11px">需先保存或正在编辑本词</span>`}
+      <button style="margin-top:10px" onclick="saveEdgeFromEdit()">仅保存这条关系</button>
+      <span class="muted" style="font-size:11px;margin-left:6px">此按钮只保存关系，不保存词条本身</span>`}
     </div>
   </div>`;
   if(editingWordId)fillWordForm(editingWordId);
